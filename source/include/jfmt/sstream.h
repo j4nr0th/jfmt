@@ -9,12 +9,12 @@
 
 
 #if __STDC_VERSION__ >= 201112L
-#define NODISCARD_ATTRIB [[nodiscard]]
+#define JFMT_NODISCARD_ATTRIB [[nodiscard]]
 #else
 #ifdef __GNUC__
 #define JFMT_NODISCARD_ATTRIB __attribute__((warn_unused_result))
 #else
-#define NODISCARD_ATTRIB
+#define JFMT_NODISCARD_ATTRIB
 #endif
 #endif
 
