@@ -60,12 +60,12 @@ char* lin_sprintf(linear_jallocator* allocator, size_t* const p_size, const char
 {
     va_list args;
     va_start(args, fmt);
-    char* const ret_v = lin_vasprintf(allocator, p_size, fmt, args);
+    char* const ret_v = lin_vsprintf(allocator, p_size, fmt, args);
     va_end(args);
     return ret_v;
 }
 
-char* lin_vasprintf(linear_jallocator* allocator, size_t* p_size, const char* fmt, va_list args)
+char* lin_vsprintf(linear_jallocator* allocator, size_t* p_size, const char* fmt, va_list args)
 {
     if (!p_size || !fmt) return NULL;
 #ifndef NDEBUG
@@ -1908,7 +1908,7 @@ void lin_eprintf(linear_jallocator* allocator, const char* fmt, ...)
     size_t len;
     va_list args;
     va_start(args, fmt);
-    char* const buffer = lin_vasprintf(allocator, &len, fmt, args);
+    char* const buffer = lin_vsprintf(allocator, &len, fmt, args);
     va_end(args);
     ssize_t res = write(STDERR_FILENO, buffer, len);
     if (res < 0)
@@ -1923,16 +1923,16 @@ char* lin_aprintf(linear_jallocator* allocator, char* previous, size_t* p_size, 
 {
     va_list args;
     va_start(args, fmt);
-    char* const res =  lin_avaprintf(allocator, previous,  p_size, fmt, args);
+    char* const res = lin_vaprintf(allocator, previous, p_size, fmt, args);
     va_end(args);
     return res;
 }
 
-char* lin_avaprintf(linear_jallocator* allocator, char* previous, size_t* p_size, const char* fmt, va_list args)
+char* lin_vaprintf(linear_jallocator* allocator, char* previous, size_t* p_size, const char* fmt, va_list args)
 {
     if (!previous || !*p_size)
     {
-        return lin_vasprintf(allocator, p_size, fmt, args);
+        return lin_vsprintf(allocator, p_size, fmt, args);
     }
     if (!fmt)
     {

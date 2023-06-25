@@ -19,12 +19,12 @@ size_t cprintf(linear_jallocator* support_allocator, const char* fmt, ...)
 {
     va_list args;
     va_start(args, fmt);
-    const size_t ret_v = vacprintf(support_allocator, fmt, args);
+    const size_t ret_v = vcprintf(support_allocator, fmt, args);
     va_end(args);
     return ret_v;
 }
 
-size_t vacprintf(linear_jallocator* support_allocator, const char* fmt, va_list args)
+size_t vcprintf(linear_jallocator* support_allocator, const char* fmt, va_list args)
 {
     size_t used = 0;
     for (const char* ptr = fmt; *ptr; ++ptr)

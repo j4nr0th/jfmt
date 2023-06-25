@@ -9,7 +9,7 @@ list(APPEND JFMT_HEADER_FILES source/internal_formatted.h ${JFMT_PUBLIC_HEADERS}
 add_library(jfmt ${JFMT_SOURCE_FILES})
 target_link_libraries(jfmt PRIVATE jmem m)
 enable_testing()
-add_executable(formatted_string_test ${JFMT_SOURCE_FILES} ${JFMT_HEADER_FILES})
+add_executable(formatted_string_test source/tests/fmt_test.c ${JFMT_SOURCE_FILES} ${JFMT_HEADER_FILES})
 target_link_libraries(formatted_string_test PRIVATE jmem m)
 add_test(NAME formatted_test COMMAND formatted_string_test)
 
@@ -17,4 +17,6 @@ target_sources(jfmt PUBLIC FILE_SET jfmt_header_list TYPE HEADERS BASE_DIRS incl
 include(GNUInstallDirs)
 install(TARGETS jfmt
             FILE_SET jfmt_header_list
-                DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}/jfmt")
+                DESTINATION "/usr/include/jfmt"
+            ARCHIVE
+                DESTINATION "/usr/lib")

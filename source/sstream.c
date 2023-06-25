@@ -97,7 +97,7 @@ void string_stream_reset(string_stream* stream)
     stream->length = 0;
 }
 
-void string_stream_cleanup(string_stream* stream)
+void string_stream_destroy(string_stream* stream)
 {
     jallocator* const allocator = stream->p_allocator;
     jfree(allocator, stream->base);
