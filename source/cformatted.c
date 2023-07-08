@@ -1,7 +1,7 @@
 //
 // Created by jan on 10.6.2023.
 //
-#include "../include/jfmt/cformatted.h"
+#include "include/jfmt/cformatted.h"
 #include "internal_formatted.h"
 #include <wchar.h>
 #include <stdint.h>
@@ -15,16 +15,16 @@
 #define exp10l(x) powl(10.0L, (x))
 #define static_assert(exp) assert(exp)
 #endif
-size_t cprintf(linear_jallocator* support_allocator, const char* fmt, ...)
+size_t cprintf(jfmt_allocation_callbacks* allocation_callbacks, const char* fmt, ...)
 {
     va_list args;
     va_start(args, fmt);
-    const size_t ret_v = vcprintf(support_allocator, fmt, args);
+    const size_t ret_v = vcprintf(allocation_callbacks, fmt, args);
     va_end(args);
     return ret_v;
 }
 
-size_t vcprintf(linear_jallocator* support_allocator, const char* fmt, va_list args)
+size_t vcprintf(jfmt_allocation_callbacks* allocation_callbacks, const char* fmt, va_list args)
 {
     size_t used = 0;
     for (const char* ptr = fmt; *ptr; ++ptr)
@@ -360,7 +360,7 @@ size_t vcprintf(linear_jallocator* support_allocator, const char* fmt, va_list a
 
                 //  Put the absolute value in the buffer
                 const size_t reserved_buffer = 64 < precision ? precision : 64;
-                char* restrict buffer = lin_jalloc(support_allocator, reserved_buffer);
+                char* restrict buffer = allocation_callbacks->alloc(allocation_callbacks->param, reserved_buffer);
                 if (!buffer)
                 {
                     used = -1;
@@ -417,7 +417,7 @@ size_t vcprintf(linear_jallocator* support_allocator, const char* fmt, va_list a
                     used += min_width - buffer_usage;
                 }
                 //  Release the temporary buffer
-                lin_jfree(support_allocator, buffer);
+                allocation_callbacks->free(allocation_callbacks->param, buffer);
             }
                 break;
 
@@ -459,7 +459,7 @@ size_t vcprintf(linear_jallocator* support_allocator, const char* fmt, va_list a
 
                 //  Put the absolute value in the buffer
                 const size_t reserved_buffer = 64 < precision ? precision : 64;
-                char* restrict buffer = lin_jalloc(support_allocator, reserved_buffer);
+                char* restrict buffer = allocation_callbacks->alloc(allocation_callbacks->param, reserved_buffer);
                 if (!buffer)
                 {
                     used = -1;
@@ -516,7 +516,7 @@ size_t vcprintf(linear_jallocator* support_allocator, const char* fmt, va_list a
                     used += min_width - buffer_usage;
                 }
                 //  Release the temporary buffer
-                lin_jfree(support_allocator, buffer);
+                allocation_callbacks->free(allocation_callbacks->param, buffer);
             }
                 break;
 
@@ -558,7 +558,7 @@ size_t vcprintf(linear_jallocator* support_allocator, const char* fmt, va_list a
 
                 //  Put the absolute value in the buffer
                 const size_t reserved_buffer = 64 < precision ? precision : 64;
-                char* restrict buffer = lin_jalloc(support_allocator, reserved_buffer);
+                char* restrict buffer = allocation_callbacks->alloc(allocation_callbacks->param, reserved_buffer);
                 if (!buffer)
                 {
                     used = -1;
@@ -617,7 +617,7 @@ size_t vcprintf(linear_jallocator* support_allocator, const char* fmt, va_list a
                     used += min_width - buffer_usage;
                 }
                 //  Release the temporary buffer
-                lin_jfree(support_allocator, buffer);
+                allocation_callbacks->free(allocation_callbacks->param, buffer);
             }
                 break;
 
@@ -659,7 +659,7 @@ size_t vcprintf(linear_jallocator* support_allocator, const char* fmt, va_list a
 
                 //  Put the absolute value in the buffer
                 const size_t reserved_buffer = 64 < precision ? precision : 64;
-                char* restrict buffer = lin_jalloc(support_allocator, reserved_buffer);
+                char* restrict buffer = allocation_callbacks->alloc(allocation_callbacks->param, reserved_buffer);
                 if (!buffer)
                 {
                     used = -1;
@@ -718,7 +718,7 @@ size_t vcprintf(linear_jallocator* support_allocator, const char* fmt, va_list a
                     used += min_width - buffer_usage;
                 }
                 //  Release the temporary buffer
-                lin_jfree(support_allocator, buffer);
+                allocation_callbacks->free(allocation_callbacks->param, buffer);
             }
                 break;
 
@@ -763,7 +763,7 @@ size_t vcprintf(linear_jallocator* support_allocator, const char* fmt, va_list a
 
                 //  Put the absolute value in the buffer
                 const size_t reserved_buffer = 64 < precision ? precision : 64;
-                char* restrict buffer = lin_jalloc(support_allocator, reserved_buffer);
+                char* restrict buffer = allocation_callbacks->alloc(allocation_callbacks->param, reserved_buffer);
                 if (!buffer)
                 {
                     used = -1;
@@ -816,7 +816,7 @@ size_t vcprintf(linear_jallocator* support_allocator, const char* fmt, va_list a
                     used += min_width - buffer_usage;
                 }
                 //  Release the temporary buffer
-                lin_jfree(support_allocator, buffer);
+                allocation_callbacks->free(allocation_callbacks->param, buffer);
             }
                 break;
             case 'p':
@@ -1008,7 +1008,7 @@ size_t vcprintf(linear_jallocator* support_allocator, const char* fmt, va_list a
 
                 //  Reserve an auxiliary buffer for conversion
                 const size_t reserved_buffer = 64 < precision ? precision : 64;
-                char* restrict buffer = lin_jalloc(support_allocator, reserved_buffer);
+                char* restrict buffer = allocation_callbacks->alloc(allocation_callbacks->param, reserved_buffer);
                 if (!buffer)
                 {
                     used = -1;
@@ -1130,7 +1130,7 @@ size_t vcprintf(linear_jallocator* support_allocator, const char* fmt, va_list a
                 //  Release the temporary buffer
 
                 //  Free the buffer
-                lin_jfree(support_allocator, buffer);
+                allocation_callbacks->free(allocation_callbacks->param, buffer);
             }
                 break;
 
@@ -1241,7 +1241,7 @@ size_t vcprintf(linear_jallocator* support_allocator, const char* fmt, va_list a
 
                 //  Reserve an auxiliary buffer for conversion
                 const size_t reserved_buffer = 64 < precision ? precision : 64;
-                char* restrict buffer = lin_jalloc(support_allocator, reserved_buffer);
+                char* restrict buffer = allocation_callbacks->alloc(allocation_callbacks->param, reserved_buffer);
                 if (!buffer)
                 {
                     used = -1;
@@ -1368,7 +1368,7 @@ size_t vcprintf(linear_jallocator* support_allocator, const char* fmt, va_list a
                 //  Release the temporary buffer
 
                 //  Free the buffer
-                lin_jfree(support_allocator, buffer);
+                allocation_callbacks->free(allocation_callbacks->param, buffer);
             }
                 break;
 
@@ -1626,7 +1626,7 @@ size_t vcprintf(linear_jallocator* support_allocator, const char* fmt, va_list a
 
                 //  Reserve an auxiliary buffer for conversion
                 const size_t reserved_buffer = 64 < precision ? precision : 64;
-                char* restrict buffer = lin_jalloc(support_allocator, reserved_buffer);
+                char* restrict buffer = allocation_callbacks->alloc(allocation_callbacks->param, reserved_buffer);
                 if (!buffer)
                 {
                     used = -1;
@@ -1739,7 +1739,7 @@ size_t vcprintf(linear_jallocator* support_allocator, const char* fmt, va_list a
                 //  Release the temporary buffer
 
                 //  Free the buffer
-                lin_jfree(support_allocator, buffer);
+                allocation_callbacks->free(allocation_callbacks->param, buffer);
             }
                 break;
             }

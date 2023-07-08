@@ -2,7 +2,7 @@
 // Created by jan on 13.5.2023.
 //
 
-#include "../include/jfmt/sformatted.h"
+#include "include/jfmt/sformatted.h"
 #include <stdarg.h>
 #include <assert.h>
 #include <wchar.h>
@@ -27,45 +27,44 @@
 #endif
 
 static inline char* write_character_to_memory(
-        linear_jallocator* allocator, char* memory, size_t* p_used, size_t* p_reserved, unsigned char c)
+        jfmt_allocation_callbacks* allocation_callbacks, char** memory, size_t* p_used, size_t* p_reserved, unsigned char c)
 {
     if (*p_used == *p_reserved)
     {
         *p_reserved += 64;
-        char* new_memory = lin_jrealloc(allocator, memory, *p_reserved);
+        char* new_memory = allocation_callbacks->realloc(allocation_callbacks->param, *memory, *p_reserved);
         if (!new_memory)
             return NULL;
-        memory = new_memory;
+        *memory = new_memory;
     }
-    ((unsigned char*)memory)[(*p_used)++] = c;
-    return memory;
+    ((unsigned char*)*memory)[(*p_used)++] = c;
+    return *memory;
 }
 
-static inline char* reserve_memory(linear_jallocator* allocator, char* memory, size_t* p_reserved, size_t reserve)
+static inline char* reserve_memory(jfmt_allocation_callbacks* allocation_callbacks, char** memory, size_t* p_reserved, size_t reserve)
 {
-    char* new_memory = lin_jrealloc(allocator, memory, *p_reserved + reserve);
+    char* new_memory = allocation_callbacks->realloc(allocation_callbacks->param, *memory, *p_reserved + reserve);
     if (!new_memory)
     {
         return NULL;
     }
     *p_reserved += reserve;
-    assert(new_memory == memory);
-    memory = new_memory;
-    return memory;
+    *memory = new_memory;
+    return *memory;
 }
 
 
 
-char* lin_sprintf(linear_jallocator* allocator, size_t* const p_size, const char* fmt, ...)
+char* lin_sprintf(jfmt_allocation_callbacks* allocation_callbacks, size_t* const p_size, const char* fmt, ...)
 {
     va_list args;
     va_start(args, fmt);
-    char* const ret_v = lin_vsprintf(allocator, p_size, fmt, args);
+    char* const ret_v = lin_vsprintf(allocation_callbacks, p_size, fmt, args);
     va_end(args);
     return ret_v;
 }
 
-char* lin_vsprintf(linear_jallocator* allocator, size_t* p_size, const char* fmt, va_list args)
+char* lin_vsprintf(jfmt_allocation_callbacks* allocation_callbacks, size_t* p_size, const char* fmt, va_list args)
 {
     if (!p_size || !fmt) return NULL;
 #ifndef NDEBUG
@@ -74,7 +73,7 @@ char* lin_vsprintf(linear_jallocator* allocator, size_t* p_size, const char* fmt
     va_copy(copy_2, args);
 #endif
     size_t used = 0, reserved = 64;
-    char* memory = lin_jalloc(allocator, reserved);
+    char* memory = allocation_callbacks->alloc(allocation_callbacks->param, reserved);
     for (const char* ptr = fmt; *ptr; ++ptr)
     {
         if (*ptr == '%' && *(ptr += 1) != '%')
@@ -254,13 +253,13 @@ char* lin_vsprintf(linear_jallocator* allocator, size_t* p_size, const char* fmt
                     int len = wctomb(buffer, v);
                     for (int i = 0; i < len; ++i)
                     {
-                        if (!write_character_to_memory(allocator, memory, &used, &reserved, buffer[i])) goto end;
+                        if (!write_character_to_memory(allocation_callbacks, &memory, &used, &reserved, buffer[i])) goto end;
                     }
                 }
                 else
                 {
                     int v = (unsigned char)va_arg(args, int);
-                    if (!write_character_to_memory(allocator, memory, &used, &reserved, v)) goto end;
+                    if (!write_character_to_memory(allocation_callbacks, &memory, &used, &reserved, v)) goto end;
                 }
                 break;
 
@@ -281,7 +280,7 @@ char* lin_vsprintf(linear_jallocator* allocator, size_t* p_size, const char* fmt
                         if (len > reserved - used)
                         {
                             reserved += len + 64;
-                            char* new_mem = lin_jrealloc(allocator, memory, reserved);
+                            char* new_mem = allocation_callbacks->realloc(allocation_callbacks->param, memory, reserved);
                             if (!new_mem)
                             {
                                 goto end;
@@ -302,7 +301,7 @@ char* lin_vsprintf(linear_jallocator* allocator, size_t* p_size, const char* fmt
                     uint_fast64_t so_far = 0;
                     for (const char* str = va_arg(args, const char*); *str && (!precision_set || so_far < precision); ++str, ++so_far)
                     {
-                        if (!write_character_to_memory(allocator, memory, &used, &reserved, *str)) goto end;
+                        if (!write_character_to_memory(allocation_callbacks, &memory, &used, &reserved, *str)) goto end;
                     }
                 }
                 break;
@@ -426,8 +425,8 @@ char* lin_vsprintf(linear_jallocator* allocator, size_t* p_size, const char* fmt
 
                 //  Put the absolute value in the buffer
                 const size_t reserved_buffer = 64 < precision ? precision : 64;
-                if (!reserve_memory(allocator, memory, &reserved, reserved_buffer)) goto end;
-                char* restrict buffer = lin_jalloc(allocator, reserved_buffer);
+                if (!reserve_memory(allocation_callbacks, &memory, &reserved, reserved_buffer)) goto end;
+                char* restrict buffer = allocation_callbacks->alloc(allocation_callbacks->param, reserved_buffer);
                 size_t buffer_usage = 0;
                 while (c)
                 {
@@ -482,7 +481,7 @@ char* lin_vsprintf(linear_jallocator* allocator, size_t* p_size, const char* fmt
                     used += min_width - buffer_usage;
                 }
                 //  Release the temporary buffer
-                lin_jfree(allocator, buffer);
+                allocation_callbacks->free(allocation_callbacks->param, buffer);
             }
                 break;
 
@@ -524,8 +523,8 @@ char* lin_vsprintf(linear_jallocator* allocator, size_t* p_size, const char* fmt
 
                 //  Put the absolute value in the buffer
                 const size_t reserved_buffer = 64 < precision ? precision : 64;
-                if (!reserve_memory(allocator, memory, &reserved, reserved_buffer)) goto end;
-                char* restrict buffer = lin_jalloc(allocator, reserved_buffer);
+                if (!reserve_memory(allocation_callbacks, &memory, &reserved, reserved_buffer)) goto end;
+                char* restrict buffer = allocation_callbacks->alloc(allocation_callbacks->param, reserved_buffer);
                 size_t buffer_usage = 0;
                 while (c)
                 {
@@ -580,7 +579,7 @@ char* lin_vsprintf(linear_jallocator* allocator, size_t* p_size, const char* fmt
                     used += min_width - buffer_usage;
                 }
                 //  Release the temporary buffer
-                lin_jfree(allocator, buffer);
+                allocation_callbacks->free(allocation_callbacks->param, buffer);
             }
                 break;
 
@@ -622,8 +621,8 @@ char* lin_vsprintf(linear_jallocator* allocator, size_t* p_size, const char* fmt
 
                 //  Put the absolute value in the buffer
                 const size_t reserved_buffer = 64 < precision ? precision : 64;
-                if (!reserve_memory(allocator, memory, &reserved, reserved_buffer)) goto end;
-                char* restrict buffer = lin_jalloc(allocator, reserved_buffer);
+                if (!reserve_memory(allocation_callbacks, &memory, &reserved, reserved_buffer)) goto end;
+                char* restrict buffer = allocation_callbacks->alloc(allocation_callbacks->param, reserved_buffer);
                 size_t buffer_usage = 0;
                 const int was_zero = c != 0;
                 while (c)
@@ -680,7 +679,7 @@ char* lin_vsprintf(linear_jallocator* allocator, size_t* p_size, const char* fmt
                     used += min_width - buffer_usage;
                 }
                 //  Release the temporary buffer
-                lin_jfree(allocator, buffer);
+                allocation_callbacks->free(allocation_callbacks->param, buffer);
             }
                 break;
 
@@ -722,8 +721,8 @@ char* lin_vsprintf(linear_jallocator* allocator, size_t* p_size, const char* fmt
 
                 //  Put the absolute value in the buffer
                 const size_t reserved_buffer = 64 < precision ? precision : 64;
-                if (!reserve_memory(allocator, memory, &reserved, reserved_buffer)) goto end;
-                char* restrict buffer = lin_jalloc(allocator, reserved_buffer);
+                if (!reserve_memory(allocation_callbacks, &memory, &reserved, reserved_buffer)) goto end;
+                char* restrict buffer = allocation_callbacks->alloc(allocation_callbacks->param, reserved_buffer);
                 size_t buffer_usage = 0;
                 const int was_zero = c == 0;
                 while (c)
@@ -780,7 +779,7 @@ char* lin_vsprintf(linear_jallocator* allocator, size_t* p_size, const char* fmt
                     used += min_width - buffer_usage;
                 }
                 //  Release the temporary buffer
-                lin_jfree(allocator, buffer);
+                allocation_callbacks->free(allocation_callbacks->param, buffer);
             }
                 break;
 
@@ -825,8 +824,8 @@ char* lin_vsprintf(linear_jallocator* allocator, size_t* p_size, const char* fmt
 
                 //  Put the absolute value in the buffer
                 const size_t reserved_buffer = 64 < precision ? precision : 64;
-                if (!reserve_memory(allocator, memory, &reserved, reserved_buffer)) goto end;
-                char* restrict buffer = lin_jalloc(allocator, reserved_buffer);
+                if (!reserve_memory(allocation_callbacks, &memory, &reserved, reserved_buffer)) goto end;
+                char* restrict buffer = allocation_callbacks->alloc(allocation_callbacks->param, reserved_buffer);
                 size_t buffer_usage = 0;
                 while (c)
                 {
@@ -877,14 +876,14 @@ char* lin_vsprintf(linear_jallocator* allocator, size_t* p_size, const char* fmt
                     used += min_width - buffer_usage;
                 }
                 //  Release the temporary buffer
-                lin_jfree(allocator, buffer);
+                allocation_callbacks->free(allocation_callbacks->param, buffer);
             }
                 break;
             case 'p':
                 //  Pointer
             {
                 uintptr_t p = (uintptr_t)va_arg(args, void*);
-                if (!reserve_memory(allocator, memory, &reserved, 18)) goto end;
+                if (!reserve_memory(allocation_callbacks, &memory, &reserved, 18)) goto end;
                 memory[used++] = '0';
                 memory[used++] = 'x';
                 memset(memory + used, '0', 16);
@@ -1079,8 +1078,8 @@ char* lin_vsprintf(linear_jallocator* allocator, size_t* p_size, const char* fmt
 
                 //  Reserve an auxiliary buffer for conversion
                 const size_t reserved_buffer = 64 < precision ? precision : 64;
-                if (!reserve_memory(allocator, memory, &reserved, reserved_buffer)) goto end;
-                char* restrict buffer = lin_jalloc(allocator, reserved_buffer);
+                if (!reserve_memory(allocation_callbacks, &memory, &reserved, reserved_buffer)) goto end;
+                char* restrict buffer = allocation_callbacks->alloc(allocation_callbacks->param, reserved_buffer);
                 size_t buffer_usage = 0;
                 if (!precision_set)
                 {
@@ -1200,7 +1199,7 @@ char* lin_vsprintf(linear_jallocator* allocator, size_t* p_size, const char* fmt
                 //  Release the temporary buffer
 
                 //  Free the buffer
-                lin_jfree(allocator, buffer);
+                allocation_callbacks->free(allocation_callbacks->param, buffer);
             }
                 break;
 
@@ -1311,8 +1310,8 @@ char* lin_vsprintf(linear_jallocator* allocator, size_t* p_size, const char* fmt
 
                 //  Reserve an auxiliary buffer for conversion
                 const size_t reserved_buffer = 64 < precision ? precision : 64;
-                if (!reserve_memory(allocator, memory, &reserved, reserved_buffer)) goto end;
-                char* restrict buffer = lin_jalloc(allocator, reserved_buffer);
+                if (!reserve_memory(allocation_callbacks, &memory, &reserved, reserved_buffer)) goto end;
+                char* restrict buffer = allocation_callbacks->alloc(allocation_callbacks->param, reserved_buffer);
                 size_t buffer_usage = 0;
                 if (!precision_set)
                 {
@@ -1437,7 +1436,7 @@ char* lin_vsprintf(linear_jallocator* allocator, size_t* p_size, const char* fmt
                 //  Release the temporary buffer
 
                 //  Free the buffer
-                lin_jfree(allocator, buffer);
+                allocation_callbacks->free(allocation_callbacks->param, buffer);
             }
                 break;
 
@@ -1695,8 +1694,8 @@ char* lin_vsprintf(linear_jallocator* allocator, size_t* p_size, const char* fmt
 
                 //  Reserve an auxiliary buffer for conversion
                 const size_t reserved_buffer = 64 < precision ? precision : 64;
-                if (!reserve_memory(allocator, memory, &reserved, reserved_buffer)) goto end;
-                char* restrict buffer = lin_jalloc(allocator, reserved_buffer);
+                if (!reserve_memory(allocation_callbacks, &memory, &reserved, reserved_buffer)) goto end;
+                char* restrict buffer = allocation_callbacks->alloc(allocation_callbacks->param, reserved_buffer);
                 if (!buffer)
                 {
                     goto end;
@@ -1811,7 +1810,7 @@ char* lin_vsprintf(linear_jallocator* allocator, size_t* p_size, const char* fmt
                 //  Release the temporary buffer
 
                 //  Free the buffer
-                lin_jfree(allocator, buffer);
+                allocation_callbacks->free(allocation_callbacks->param, buffer);
             }
                 break;
             }
@@ -1823,10 +1822,10 @@ char* lin_vsprintf(linear_jallocator* allocator, size_t* p_size, const char* fmt
                 static_assert(sizeof(SMALL_NAN_STR) == 3);
                 for (uint32_t i = 0; min_width > sizeof(SMALL_NAN_STR) + i + flag_sign_pre_appended; ++i)
                 {
-                    if (!write_character_to_memory(allocator, memory, &used, &reserved, ' ')) goto end;
+                    if (!write_character_to_memory(allocation_callbacks, &memory, &used, &reserved, ' ')) goto end;
                 }
-                if ((flag_sign_pre_appended && !signbit(d_abnorm) && !write_character_to_memory(allocator, memory, &used, &reserved, '+')) || (signbit(d_abnorm) && !write_character_to_memory(allocator, memory, &used, &reserved, '-'))) goto end;
-                if (!reserve_memory(allocator, memory, &reserved, sizeof(SMALL_NAN_STR))) goto end;
+                if ((flag_sign_pre_appended && !signbit(d_abnorm) && !write_character_to_memory(allocation_callbacks, &memory, &used, &reserved, '+')) || (signbit(d_abnorm) && !write_character_to_memory(allocation_callbacks, &memory, &used, &reserved, '-'))) goto end;
+                if (!reserve_memory(allocation_callbacks, &memory, &reserved, sizeof(SMALL_NAN_STR))) goto end;
                 memcpy(memory + used, SMALL_NAN_STR, sizeof(SMALL_NAN_STR));
                 used += sizeof(SMALL_NAN_STR);
                 continue;
@@ -1836,10 +1835,10 @@ char* lin_vsprintf(linear_jallocator* allocator, size_t* p_size, const char* fmt
                 static const char BIG_NAN_STR[3] = "NAN";
                 for (uint32_t i = 0; min_width > sizeof(BIG_NAN_STR) + i + flag_sign_pre_appended; ++i)
                 {
-                    if (!write_character_to_memory(allocator, memory, &used, &reserved, ' ')) goto end;
+                    if (!write_character_to_memory(allocation_callbacks, &memory, &used, &reserved, ' ')) goto end;
                 }
-                if ((flag_sign_pre_appended && !signbit(d_abnorm) && !write_character_to_memory(allocator, memory, &used, &reserved, '+')) || (signbit(d_abnorm) && !write_character_to_memory(allocator, memory, &used, &reserved, '-'))) goto end;
-                if (!reserve_memory(allocator, memory, &reserved, sizeof(BIG_NAN_STR))) goto end;
+                if ((flag_sign_pre_appended && !signbit(d_abnorm) && !write_character_to_memory(allocation_callbacks, &memory, &used, &reserved, '+')) || (signbit(d_abnorm) && !write_character_to_memory(allocation_callbacks, &memory, &used, &reserved, '-'))) goto end;
+                if (!reserve_memory(allocation_callbacks, &memory, &reserved, sizeof(BIG_NAN_STR))) goto end;
                 memcpy(memory + used, BIG_NAN_STR, sizeof(BIG_NAN_STR));
                 static_assert(sizeof(BIG_NAN_STR) == 3);
                 used += sizeof(BIG_NAN_STR);
@@ -1850,10 +1849,10 @@ char* lin_vsprintf(linear_jallocator* allocator, size_t* p_size, const char* fmt
                 static const char SMALL_INF_STR[3] = "inf";
                 for (uint32_t i = 0; min_width > sizeof(SMALL_INF_STR) + i + flag_sign_pre_appended; ++i)
                 {
-                    if (!write_character_to_memory(allocator, memory, &used, &reserved, ' ')) goto end;
+                    if (!write_character_to_memory(allocation_callbacks, &memory, &used, &reserved, ' ')) goto end;
                 }
-                if ((flag_sign_pre_appended && !signbit(d_abnorm) && !write_character_to_memory(allocator, memory, &used, &reserved, '+')) || (signbit(d_abnorm) && !write_character_to_memory(allocator, memory, &used, &reserved, '-'))) goto end;
-                if (!reserve_memory(allocator, memory, &reserved, sizeof(SMALL_INF_STR))) goto end;
+                if ((flag_sign_pre_appended && !signbit(d_abnorm) && !write_character_to_memory(allocation_callbacks, &memory, &used, &reserved, '+')) || (signbit(d_abnorm) && !write_character_to_memory(allocation_callbacks, &memory, &used, &reserved, '-'))) goto end;
+                if (!reserve_memory(allocation_callbacks, &memory, &reserved, sizeof(SMALL_INF_STR))) goto end;
                 memcpy(memory + used, SMALL_INF_STR, sizeof(SMALL_INF_STR));
                 static_assert(sizeof(SMALL_INF_STR) == 3);
                 used += sizeof(SMALL_INF_STR);
@@ -1864,22 +1863,21 @@ char* lin_vsprintf(linear_jallocator* allocator, size_t* p_size, const char* fmt
                 static const char BIG_INF_STR[3] = "INF";
                 for (uint32_t i = 0; min_width > sizeof(BIG_INF_STR) + i + flag_sign_pre_appended; ++i)
                 {
-                    if (!write_character_to_memory(allocator, memory, &used, &reserved, ' ')) goto end;
+                    if (!write_character_to_memory(allocation_callbacks, &memory, &used, &reserved, ' ')) goto end;
                 }
-                if ((flag_sign_pre_appended && !signbit(d_abnorm) && !write_character_to_memory(allocator, memory, &used, &reserved, '+')) || (signbit(d_abnorm) && !write_character_to_memory(allocator, memory, &used, &reserved, '-'))) goto end;
-                if (!reserve_memory(allocator, memory, &reserved, sizeof(BIG_INF_STR))) goto end;
+                if ((flag_sign_pre_appended && !signbit(d_abnorm) && !write_character_to_memory(allocation_callbacks, &memory, &used, &reserved, '+')) || (signbit(d_abnorm) && !write_character_to_memory(allocation_callbacks, &memory, &used, &reserved, '-'))) goto end;
+                if (!reserve_memory(allocation_callbacks, &memory, &reserved, sizeof(BIG_INF_STR))) goto end;
                 memcpy(memory + used, BIG_INF_STR, sizeof(BIG_INF_STR));
                 static_assert(sizeof(BIG_INF_STR) == 3);
                 used += sizeof(BIG_INF_STR);
                 continue;
             }
         }
-        else if (!write_character_to_memory(allocator, memory, &used, &reserved, *ptr)) goto end;
+        else if (!write_character_to_memory(allocation_callbacks, &memory, &used, &reserved, *ptr)) goto end;
     }
     end:;
     //  Make the string fit perfectly
-    void* new_mem = lin_jrealloc(allocator, memory, used + 1);
-    assert(new_mem == memory);
+    void* new_mem = allocation_callbacks->realloc(allocation_callbacks->param, memory, used + 1);
     memory = new_mem;
     if (!used || (used && memory[used - 1 ] != 0))
     {
@@ -1896,19 +1894,23 @@ char* lin_vsprintf(linear_jallocator* allocator, size_t* p_size, const char* fmt
     char* test_buffer = malloc(len + 1);
     assert(test_buffer);
     vsnprintf(test_buffer, len + 1, fmt, copy_2);
+    test_buffer[len] = 0;
     va_end(copy_2);
     assert(len == used);
-    assert(memcmp(test_buffer, memory, len) == 0);
+    printf("Test buffer: %.*s\nMemory: %.*s\n", (int)len, test_buffer, (int)used, memory);
+    int res = memcmp(test_buffer, memory, len);
+    printf("memcpy: %i, strcmp: %i\n", res, strcmp(test_buffer, memory));
+    assert(res == 0);
 #endif
     return memory;
 }
 
-void lin_eprintf(linear_jallocator* allocator, const char* fmt, ...)
+void lin_eprintf(jfmt_allocation_callbacks* allocation_callbacks, const char* fmt, ...)
 {
     size_t len;
     va_list args;
     va_start(args, fmt);
-    char* const buffer = lin_vsprintf(allocator, &len, fmt, args);
+    char* const buffer = lin_vsprintf(allocation_callbacks, &len, fmt, args);
     va_end(args);
     ssize_t res = write(STDERR_FILENO, buffer, len);
     if (res < 0)
@@ -1916,23 +1918,23 @@ void lin_eprintf(linear_jallocator* allocator, const char* fmt, ...)
         assert(0);
     }
     //  Free the buffer
-    lin_jfree(allocator, buffer);
+    allocation_callbacks->free(allocation_callbacks->param, buffer);
 }
 
-char* lin_aprintf(linear_jallocator* allocator, char* previous, size_t* p_size, const char* fmt, ...)
+char* lin_aprintf(jfmt_allocation_callbacks* allocation_callbacks, char* previous, size_t* p_size, const char* fmt, ...)
 {
     va_list args;
     va_start(args, fmt);
-    char* const res = lin_vaprintf(allocator, previous, p_size, fmt, args);
+    char* const res = lin_vaprintf(allocation_callbacks, previous, p_size, fmt, args);
     va_end(args);
     return res;
 }
 
-char* lin_vaprintf(linear_jallocator* allocator, char* previous, size_t* p_size, const char* fmt, va_list args)
+char* lin_vaprintf(jfmt_allocation_callbacks* allocation_callbacks, char* previous, size_t* p_size, const char* fmt, va_list args)
 {
     if (!previous || !*p_size)
     {
-        return lin_vsprintf(allocator, p_size, fmt, args);
+        return lin_vsprintf(allocation_callbacks, p_size, fmt, args);
     }
     if (!fmt)
     {
@@ -2124,13 +2126,13 @@ char* lin_vaprintf(linear_jallocator* allocator, char* previous, size_t* p_size,
                     int len = wctomb(buffer, v);
                     for (int i = 0; i < len; ++i)
                     {
-                        if (!write_character_to_memory(allocator, memory, &used, &reserved, buffer[i])) goto end;
+                        if (!write_character_to_memory(allocation_callbacks, &memory, &used, &reserved, buffer[i])) goto end;
                     }
                 }
                 else
                 {
                     int v = (unsigned char)va_arg(args, int);
-                    if (!write_character_to_memory(allocator, memory, &used, &reserved, v)) goto end;
+                    if (!write_character_to_memory(allocation_callbacks, &memory, &used, &reserved, v)) goto end;
                 }
                 break;
 
@@ -2151,7 +2153,7 @@ char* lin_vaprintf(linear_jallocator* allocator, char* previous, size_t* p_size,
                         if (len > reserved - used)
                         {
                             reserved += len + 64;
-                            char* new_mem = lin_jrealloc(allocator, memory, reserved);
+                            char* new_mem = allocation_callbacks->realloc(allocation_callbacks->param, memory, reserved);
                             if (!new_mem)
                             {
                                 goto end;
@@ -2172,7 +2174,7 @@ char* lin_vaprintf(linear_jallocator* allocator, char* previous, size_t* p_size,
                     uint_fast64_t so_far = 0;
                     for (const char* str = va_arg(args, const char*); *str && (!precision_set || so_far < precision); ++str, ++so_far)
                     {
-                        if (!write_character_to_memory(allocator, memory, &used, &reserved, *str)) goto end;
+                        if (!write_character_to_memory(allocation_callbacks, &memory, &used, &reserved, *str)) goto end;
                     }
                 }
                 break;
@@ -2296,8 +2298,8 @@ char* lin_vaprintf(linear_jallocator* allocator, char* previous, size_t* p_size,
 
                 //  Put the absolute value in the buffer
                 const size_t reserved_buffer = 64 < precision ? precision : 64;
-                if (!reserve_memory(allocator, memory, &reserved, reserved_buffer)) goto end;
-                char* restrict buffer = lin_jalloc(allocator, reserved_buffer);
+                if (!reserve_memory(allocation_callbacks, &memory, &reserved, reserved_buffer)) goto end;
+                char* restrict buffer = allocation_callbacks->alloc(allocation_callbacks->param, reserved_buffer);
                 size_t buffer_usage = 0;
                 while (c)
                 {
@@ -2352,7 +2354,7 @@ char* lin_vaprintf(linear_jallocator* allocator, char* previous, size_t* p_size,
                     used += min_width - buffer_usage;
                 }
                 //  Release the temporary buffer
-                lin_jfree(allocator, buffer);
+                allocation_callbacks->free(allocation_callbacks->param, buffer);
             }
                 break;
 
@@ -2394,8 +2396,8 @@ char* lin_vaprintf(linear_jallocator* allocator, char* previous, size_t* p_size,
 
                 //  Put the absolute value in the buffer
                 const size_t reserved_buffer = 64 < precision ? precision : 64;
-                if (!reserve_memory(allocator, memory, &reserved, reserved_buffer)) goto end;
-                char* restrict buffer = lin_jalloc(allocator, reserved_buffer);
+                if (!reserve_memory(allocation_callbacks, &memory, &reserved, reserved_buffer)) goto end;
+                char* restrict buffer = allocation_callbacks->alloc(allocation_callbacks->param, reserved_buffer);
                 size_t buffer_usage = 0;
                 while (c)
                 {
@@ -2450,7 +2452,7 @@ char* lin_vaprintf(linear_jallocator* allocator, char* previous, size_t* p_size,
                     used += min_width - buffer_usage;
                 }
                 //  Release the temporary buffer
-                lin_jfree(allocator, buffer);
+                allocation_callbacks->free(allocation_callbacks->param, buffer);
             }
                 break;
 
@@ -2492,8 +2494,8 @@ char* lin_vaprintf(linear_jallocator* allocator, char* previous, size_t* p_size,
 
                 //  Put the absolute value in the buffer
                 const size_t reserved_buffer = 64 < precision ? precision : 64;
-                if (!reserve_memory(allocator, memory, &reserved, reserved_buffer)) goto end;
-                char* restrict buffer = lin_jalloc(allocator, reserved_buffer);
+                if (!reserve_memory(allocation_callbacks, &memory, &reserved, reserved_buffer)) goto end;
+                char* restrict buffer = allocation_callbacks->alloc(allocation_callbacks->param, reserved_buffer);
                 size_t buffer_usage = 0;
                 const int was_zero = c != 0;
                 while (c)
@@ -2550,7 +2552,7 @@ char* lin_vaprintf(linear_jallocator* allocator, char* previous, size_t* p_size,
                     used += min_width - buffer_usage;
                 }
                 //  Release the temporary buffer
-                lin_jfree(allocator, buffer);
+                allocation_callbacks->free(allocation_callbacks->param, buffer);
             }
                 break;
 
@@ -2592,8 +2594,8 @@ char* lin_vaprintf(linear_jallocator* allocator, char* previous, size_t* p_size,
 
                 //  Put the absolute value in the buffer
                 const size_t reserved_buffer = 64 < precision ? precision : 64;
-                if (!reserve_memory(allocator, memory, &reserved, reserved_buffer)) goto end;
-                char* restrict buffer = lin_jalloc(allocator, reserved_buffer);
+                if (!reserve_memory(allocation_callbacks, &memory, &reserved, reserved_buffer)) goto end;
+                char* restrict buffer = allocation_callbacks->alloc(allocation_callbacks->param, reserved_buffer);
                 size_t buffer_usage = 0;
                 const int was_zero = c == 0;
                 while (c)
@@ -2650,7 +2652,7 @@ char* lin_vaprintf(linear_jallocator* allocator, char* previous, size_t* p_size,
                     used += min_width - buffer_usage;
                 }
                 //  Release the temporary buffer
-                lin_jfree(allocator, buffer);
+                allocation_callbacks->free(allocation_callbacks->param, buffer);
             }
                 break;
 
@@ -2695,8 +2697,8 @@ char* lin_vaprintf(linear_jallocator* allocator, char* previous, size_t* p_size,
 
                 //  Put the absolute value in the buffer
                 const size_t reserved_buffer = 64 < precision ? precision : 64;
-                if (!reserve_memory(allocator, memory, &reserved, reserved_buffer)) goto end;
-                char* restrict buffer = lin_jalloc(allocator, reserved_buffer);
+                if (!reserve_memory(allocation_callbacks, &memory, &reserved, reserved_buffer)) goto end;
+                char* restrict buffer = allocation_callbacks->alloc(allocation_callbacks->param, reserved_buffer);
                 size_t buffer_usage = 0;
                 while (c)
                 {
@@ -2747,14 +2749,14 @@ char* lin_vaprintf(linear_jallocator* allocator, char* previous, size_t* p_size,
                     used += min_width - buffer_usage;
                 }
                 //  Release the temporary buffer
-                lin_jfree(allocator, buffer);
+                allocation_callbacks->free(allocation_callbacks->param, buffer);
             }
                 break;
             case 'p':
                 //  Pointer
             {
                 uintptr_t p = (uintptr_t)va_arg(args, void*);
-                if (!reserve_memory(allocator, memory, &reserved, 18)) goto end;
+                if (!reserve_memory(allocation_callbacks, &memory, &reserved, 18)) goto end;
                 memory[used++] = '0';
                 memory[used++] = 'x';
                 memset(memory + used, '0', 16);
@@ -2949,8 +2951,8 @@ char* lin_vaprintf(linear_jallocator* allocator, char* previous, size_t* p_size,
 
                 //  Reserve an auxiliary buffer for conversion
                 const size_t reserved_buffer = 64 < precision ? precision : 64;
-                if (!reserve_memory(allocator, memory, &reserved, reserved_buffer)) goto end;
-                char* restrict buffer = lin_jalloc(allocator, reserved_buffer);
+                if (!reserve_memory(allocation_callbacks, &memory, &reserved, reserved_buffer)) goto end;
+                char* restrict buffer = allocation_callbacks->alloc(allocation_callbacks->param, reserved_buffer);
                 size_t buffer_usage = 0;
                 if (!precision_set)
                 {
@@ -3070,7 +3072,7 @@ char* lin_vaprintf(linear_jallocator* allocator, char* previous, size_t* p_size,
                 //  Release the temporary buffer
 
                 //  Free the buffer
-                lin_jfree(allocator, buffer);
+                allocation_callbacks->free(allocation_callbacks->param, buffer);
             }
                 break;
 
@@ -3181,8 +3183,8 @@ char* lin_vaprintf(linear_jallocator* allocator, char* previous, size_t* p_size,
 
                 //  Reserve an auxiliary buffer for conversion
                 const size_t reserved_buffer = 64 < precision ? precision : 64;
-                if (!reserve_memory(allocator, memory, &reserved, reserved_buffer)) goto end;
-                char* restrict buffer = lin_jalloc(allocator, reserved_buffer);
+                if (!reserve_memory(allocation_callbacks, &memory, &reserved, reserved_buffer)) goto end;
+                char* restrict buffer = allocation_callbacks->alloc(allocation_callbacks->param, reserved_buffer);
                 size_t buffer_usage = 0;
                 if (!precision_set)
                 {
@@ -3307,7 +3309,7 @@ char* lin_vaprintf(linear_jallocator* allocator, char* previous, size_t* p_size,
                 //  Release the temporary buffer
 
                 //  Free the buffer
-                lin_jfree(allocator, buffer);
+                allocation_callbacks->free(allocation_callbacks->param, buffer);
             }
                 break;
 
@@ -3565,8 +3567,8 @@ char* lin_vaprintf(linear_jallocator* allocator, char* previous, size_t* p_size,
 
                 //  Reserve an auxiliary buffer for conversion
                 const size_t reserved_buffer = 64 < precision ? precision : 64;
-                if (!reserve_memory(allocator, memory, &reserved, reserved_buffer)) goto end;
-                char* restrict buffer = lin_jalloc(allocator, reserved_buffer);
+                if (!reserve_memory(allocation_callbacks, &memory, &reserved, reserved_buffer)) goto end;
+                char* restrict buffer = allocation_callbacks->alloc(allocation_callbacks->param, reserved_buffer);
                 if (!buffer)
                 {
                     goto end;
@@ -3681,7 +3683,7 @@ char* lin_vaprintf(linear_jallocator* allocator, char* previous, size_t* p_size,
                 //  Release the temporary buffer
 
                 //  Free the buffer
-                lin_jfree(allocator, buffer);
+                allocation_callbacks->free(allocation_callbacks->param, buffer);
             }
                 break;
             }
@@ -3693,10 +3695,10 @@ char* lin_vaprintf(linear_jallocator* allocator, char* previous, size_t* p_size,
                 static_assert(sizeof(SMALL_NAN_STR) == 3);
                 for (uint32_t i = 0; min_width > sizeof(SMALL_NAN_STR) + i + flag_sign_pre_appended; ++i)
                 {
-                    if (!write_character_to_memory(allocator, memory, &used, &reserved, ' ')) goto end;
+                    if (!write_character_to_memory(allocation_callbacks, &memory, &used, &reserved, ' ')) goto end;
                 }
-                if ((flag_sign_pre_appended && !signbit(d_abnorm) && !write_character_to_memory(allocator, memory, &used, &reserved, '+')) || (signbit(d_abnorm) && !write_character_to_memory(allocator, memory, &used, &reserved, '-'))) goto end;
-                if (!reserve_memory(allocator, memory, &reserved, sizeof(SMALL_NAN_STR))) goto end;
+                if ((flag_sign_pre_appended && !signbit(d_abnorm) && !write_character_to_memory(allocation_callbacks, &memory, &used, &reserved, '+')) || (signbit(d_abnorm) && !write_character_to_memory(allocation_callbacks, &memory, &used, &reserved, '-'))) goto end;
+                if (!reserve_memory(allocation_callbacks, &memory, &reserved, sizeof(SMALL_NAN_STR))) goto end;
                 memcpy(memory + used, SMALL_NAN_STR, sizeof(SMALL_NAN_STR));
                 used += sizeof(SMALL_NAN_STR);
                 continue;
@@ -3706,10 +3708,10 @@ char* lin_vaprintf(linear_jallocator* allocator, char* previous, size_t* p_size,
                 static const char BIG_NAN_STR[3] = "NAN";
                 for (uint32_t i = 0; min_width > sizeof(BIG_NAN_STR) + i + flag_sign_pre_appended; ++i)
                 {
-                    if (!write_character_to_memory(allocator, memory, &used, &reserved, ' ')) goto end;
+                    if (!write_character_to_memory(allocation_callbacks, &memory, &used, &reserved, ' ')) goto end;
                 }
-                if ((flag_sign_pre_appended && !signbit(d_abnorm) && !write_character_to_memory(allocator, memory, &used, &reserved, '+')) || (signbit(d_abnorm) && !write_character_to_memory(allocator, memory, &used, &reserved, '-'))) goto end;
-                if (!reserve_memory(allocator, memory, &reserved, sizeof(BIG_NAN_STR))) goto end;
+                if ((flag_sign_pre_appended && !signbit(d_abnorm) && !write_character_to_memory(allocation_callbacks, &memory, &used, &reserved, '+')) || (signbit(d_abnorm) && !write_character_to_memory(allocation_callbacks, &memory, &used, &reserved, '-'))) goto end;
+                if (!reserve_memory(allocation_callbacks, &memory, &reserved, sizeof(BIG_NAN_STR))) goto end;
                 memcpy(memory + used, BIG_NAN_STR, sizeof(BIG_NAN_STR));
                 static_assert(sizeof(BIG_NAN_STR) == 3);
                 used += sizeof(BIG_NAN_STR);
@@ -3720,10 +3722,10 @@ char* lin_vaprintf(linear_jallocator* allocator, char* previous, size_t* p_size,
                 static const char SMALL_INF_STR[3] = "inf";
                 for (uint32_t i = 0; min_width > sizeof(SMALL_INF_STR) + i + flag_sign_pre_appended; ++i)
                 {
-                    if (!write_character_to_memory(allocator, memory, &used, &reserved, ' ')) goto end;
+                    if (!write_character_to_memory(allocation_callbacks, &memory, &used, &reserved, ' ')) goto end;
                 }
-                if ((flag_sign_pre_appended && !signbit(d_abnorm) && !write_character_to_memory(allocator, memory, &used, &reserved, '+')) || (signbit(d_abnorm) && !write_character_to_memory(allocator, memory, &used, &reserved, '-'))) goto end;
-                if (!reserve_memory(allocator, memory, &reserved, sizeof(SMALL_INF_STR))) goto end;
+                if ((flag_sign_pre_appended && !signbit(d_abnorm) && !write_character_to_memory(allocation_callbacks, &memory, &used, &reserved, '+')) || (signbit(d_abnorm) && !write_character_to_memory(allocation_callbacks, &memory, &used, &reserved, '-'))) goto end;
+                if (!reserve_memory(allocation_callbacks, &memory, &reserved, sizeof(SMALL_INF_STR))) goto end;
                 memcpy(memory + used, SMALL_INF_STR, sizeof(SMALL_INF_STR));
                 static_assert(sizeof(SMALL_INF_STR) == 3);
                 used += sizeof(SMALL_INF_STR);
@@ -3734,21 +3736,21 @@ char* lin_vaprintf(linear_jallocator* allocator, char* previous, size_t* p_size,
                 static const char BIG_INF_STR[3] = "INF";
                 for (uint32_t i = 0; min_width > sizeof(BIG_INF_STR) + i + flag_sign_pre_appended; ++i)
                 {
-                    if (!write_character_to_memory(allocator, memory, &used, &reserved, ' ')) goto end;
+                    if (!write_character_to_memory(allocation_callbacks, &memory, &used, &reserved, ' ')) goto end;
                 }
-                if ((flag_sign_pre_appended && !signbit(d_abnorm) && !write_character_to_memory(allocator, memory, &used, &reserved, '+')) || (signbit(d_abnorm) && !write_character_to_memory(allocator, memory, &used, &reserved, '-'))) goto end;
-                if (!reserve_memory(allocator, memory, &reserved, sizeof(BIG_INF_STR))) goto end;
+                if ((flag_sign_pre_appended && !signbit(d_abnorm) && !write_character_to_memory(allocation_callbacks, &memory, &used, &reserved, '+')) || (signbit(d_abnorm) && !write_character_to_memory(allocation_callbacks, &memory, &used, &reserved, '-'))) goto end;
+                if (!reserve_memory(allocation_callbacks, &memory, &reserved, sizeof(BIG_INF_STR))) goto end;
                 memcpy(memory + used, BIG_INF_STR, sizeof(BIG_INF_STR));
                 static_assert(sizeof(BIG_INF_STR) == 3);
                 used += sizeof(BIG_INF_STR);
                 continue;
             }
         }
-        else if (!write_character_to_memory(allocator, memory, &used, &reserved, *ptr)) goto end;
+        else if (!write_character_to_memory(allocation_callbacks, &memory, &used, &reserved, *ptr)) goto end;
     }
     end:;
     //  Make the string fit perfectly
-    void* new_mem = lin_jrealloc(allocator, memory, used + 1);
+    void* new_mem = allocation_callbacks->realloc(allocation_callbacks->param, memory, used + 1);
     assert(new_mem == memory);
     memory = new_mem;
     if (!used || (used && memory[used - 1 ] != 0))

@@ -6,7 +6,7 @@ list(APPEND JFMT_PUBLIC_HEADERS source/include/jfmt/jfmt.h source/include/jfmt/c
 list(APPEND JFMT_SOURCE_FILES source/internal_formatted.c source/cformatted.c source/sformatted.c source/sstream.c)
 list(APPEND JFMT_HEADER_FILES source/internal_formatted.h ${JFMT_PUBLIC_HEADERS})
 
-add_library(jfmt ${JFMT_SOURCE_FILES})
+add_library(jfmt ${JFMT_SOURCE_FILES} source/include/jfmt/jfmt_common.h)
 target_link_libraries(jfmt PRIVATE jmem m)
 enable_testing()
 add_executable(formatted_string_test source/tests/fmt_test.c ${JFMT_SOURCE_FILES} ${JFMT_HEADER_FILES})

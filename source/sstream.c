@@ -3,26 +3,25 @@
 //
 
 #include <stdio.h>
-#include "../include/jfmt/sstream.h"
-#include <jmem/jalloc.h>
+#include "include/jfmt/sstream.h"
 
 struct string_stream_struct
 {
-    jallocator* p_allocator;
+    jfmt_allocation_callbacks* allocation_callbacks;
     size_t length;
     size_t capacity;
     char* base;
 };
-size_t string_stream_create(jallocator* allocator, string_stream** p_stream)
+size_t string_stream_create(jfmt_allocation_callbacks* allocation_callbacks, string_stream** p_stream)
 {
-    string_stream* this = jalloc(allocator, sizeof(*this));
+    string_stream* this = allocation_callbacks->alloc(allocation_callbacks->param, sizeof(*this));
     if (!this) return -1;
     memset(this, 0, sizeof(*this));
-    this->p_allocator = allocator;
-    this->base = jalloc(allocator, 4096);
+    this->allocation_callbacks = allocation_callbacks;
+    this->base = allocation_callbacks->alloc(allocation_callbacks->param, 4096);
     if (!this->base)
     {
-        jfree(allocator, this);
+        allocation_callbacks->free(allocation_callbacks->param, this);
         return -1;
     }
     this->capacity = 4096;
@@ -49,7 +48,7 @@ size_t string_stream_add(string_stream* stream, const char* fmt, ...)
         uint_fast64_t page_count = (written + 1) >> 12;   //  Divide by 4096
         page_count += ((written + 1) & ((1 << 12) - 1)) != 0; //  If there is a remainder, then add an extra page
         const uint_fast64_t new_capacity = stream->capacity + (1 << 12) * page_count;
-        char* const new_ptr = jrealloc(stream->p_allocator, stream->base, new_capacity);
+        char* const new_ptr = stream->allocation_callbacks->realloc(stream->allocation_callbacks, stream->base, new_capacity);
         if (!new_ptr)
         {
             return -1;
@@ -78,7 +77,7 @@ size_t string_stream_add_str(string_stream* stream, const char* str)
         uint_fast64_t page_count = (len + 1) >> 12;   //  Divide by 4096
         page_count += ((len + 1) & ((1 << 12) - 1)) != 0; //  If there is a remainder, then add an extra page
         const uint_fast64_t new_capacity = stream->capacity + (1 << 12) * page_count;
-        char* const new_ptr = jrealloc(stream->p_allocator, stream->base, new_capacity);
+        char* const new_ptr = stream->allocation_callbacks->realloc(stream->allocation_callbacks, stream->base, new_capacity);
         if (!new_ptr)
         {
             return -1;
@@ -99,10 +98,10 @@ void string_stream_reset(string_stream* stream)
 
 void string_stream_destroy(string_stream* stream)
 {
-    jallocator* const allocator = stream->p_allocator;
-    jfree(allocator, stream->base);
+    jfmt_allocation_callbacks* const allocation_callbacks = stream->allocation_callbacks;
+    allocation_callbacks->free(allocation_callbacks->param, stream->base);
     memset(stream, 0, sizeof(*stream));
-    jfree(allocator, stream);
+    allocation_callbacks->free(allocation_callbacks->param, stream);
 }
 
 size_t string_stream_len(string_stream* stream)

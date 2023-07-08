@@ -5,22 +5,10 @@
 #ifndef JFMT_SSTREAM_H
 #define JFMT_SSTREAM_H
 #include "sformatted.h"
-#include <jmem/jalloc.h>
 
-
-#if __STDC_VERSION__ >= 201112L
-#define JFMT_NODISCARD_ATTRIB [[nodiscard]]
-#else
-#ifdef __GNUC__
-#define JFMT_NODISCARD_ATTRIB __attribute__((warn_unused_result))
-#else
-#define JFMT_NODISCARD_ATTRIB
-#endif
-#endif
 
 #ifdef __GNUC__
-#define JFMT_ATTRIBUTES(...) __VA_OPT__(__attribute__((__VA_ARGS__)))
-#define JFMT_NDATTRIBUTES(...) JMEM_NODISCARD_ATTRIB __VA_OPT__(__attribute__((__VA_ARGS__)))
+#define GCC_ONLY(x) x
 #endif
 
 /**
@@ -31,11 +19,11 @@ typedef struct string_stream_struct string_stream;
 
 /**
  * Creates a string stream and associates it with a given allocator that it will use.
- * @param allocator allocator to use for the string stream's buffer
+ * @param allocation_callbacks allocator callbacks to use for the string stream's buffer
  * @param p_stream pointer which receives the string stream
  * @return 0 on success, (size_t)-1 on failure
  */
-size_t string_stream_create(jallocator* allocator, string_stream** p_stream);
+size_t string_stream_create(jfmt_allocation_callbacks* allocation_callbacks, string_stream** p_stream);
 
 /**
  * Adds more to the end of the current string stream contents
@@ -44,7 +32,7 @@ size_t string_stream_create(jallocator* allocator, string_stream** p_stream);
  * @param ... variable arguments form the string stream
  * @return number of characters written to the stream, (size_t)-1 on failure
  */
-size_t string_stream_add(string_stream* stream, const char* fmt, ...)JFMT_ATTRIBUTES(format(printf, 2, 3));
+size_t string_stream_add(string_stream* stream, const char* fmt, ...) GCC_ONLY(__attribute__((format(printf, 2, 3))));
 
 /**
  * Retrieves the current contents of the string stream. The buffer belongs to the string stream so it should not be
@@ -81,8 +69,6 @@ void string_stream_reset(string_stream* stream);
  */
 void string_stream_destroy(string_stream* stream);
 
-#undef JFMT_NODISCARD_ATTRIB
-#undef JFMT_ATTRIBUTES
-#undef JFMT_NDATTRIBUTES
+#undef GCC_ONLY
 
 #endif //JFMT_SSTREAM_H

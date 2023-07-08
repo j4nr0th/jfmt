@@ -4,6 +4,11 @@
 
 #include "internal_formatted.h"
 
+#if __STDC_VERSION__ < 201112L
+#include <assert.h>
+#define static_assert(exp) assert(exp)
+#endif
+
 char unsigned_get_lsd_dec_and_shift(uintmax_t* p_value)
 {
     lldiv_t res = lldiv((long long)*p_value, 10);

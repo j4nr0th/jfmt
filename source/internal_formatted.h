@@ -4,7 +4,6 @@
 
 #ifndef JFMT_INTERNAL_FORMATTED_H
 #define JFMT_INTERNAL_FORMATTED_H
-#include <jmem/jmem.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <assert.h>
